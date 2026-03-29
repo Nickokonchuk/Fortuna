@@ -37,19 +37,29 @@ export default function App() {
 
   // Ініціалізація аудіо
   useEffect(() => {
-    // Створюємо пул з 10 об'єктів для миттєвого відтворення без затримок
     const poolSize = 10;
     const pool: HTMLAudioElement[] = [];
+    const tickUrl = 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3';
+    
     for (let i = 0; i < poolSize; i++) {
       const audio = new Audio('/tick.mp3');
       audio.preload = 'auto';
+      // Якщо локальний файл не знайдено, використовуємо запасний
+      audio.onerror = () => {
+        if (audio.src.includes('/tick.mp3')) {
+          audio.src = tickUrl;
+        }
+      };
       pool.push(audio);
     }
     tickPoolRef.current = pool;
 
     const win = new Audio('/win.mp3');
+    win.preload = 'auto';
     win.onerror = () => {
-      win.src = 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3';
+      if (win.src.includes('/win.mp3')) {
+        win.src = 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3';
+      }
     };
     winAudioRef.current = win;
 
