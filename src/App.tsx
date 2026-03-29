@@ -46,8 +46,8 @@ export default function App() {
     for (let i = 0; i < poolSize; i++) {
       const audio = new Audio('/tick.mp3');
       audio.preload = 'auto';
-      // Якщо локальний файл не знайдено, використовуємо запасний
       audio.onerror = () => {
+        console.warn(`Failed to load /tick.mp3, trying fallback...`);
         if (audio.src.includes('/tick.mp3')) {
           audio.src = tickUrl;
         }
@@ -59,6 +59,7 @@ export default function App() {
     const win = new Audio('/win.mp3');
     win.preload = 'auto';
     win.onerror = () => {
+      console.warn(`Failed to load /win.mp3, trying fallback...`);
       if (win.src.includes('/win.mp3')) {
         win.src = 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3';
       }
@@ -75,29 +76,30 @@ export default function App() {
   const unlockAudio = useCallback(() => {
     if (isAudioUnlocked) return;
     
-    // Програємо і одразу ставимо на паузу всі звуки в пулі, щоб "розблокувати" їх для браузера
-    const promises = tickPoolRef.current.map(audio => {
-      audio.volume = 0;
-      return audio.play().then(() => {
+    // Достатньо програти один звук з пулу та звук перемоги для розблокування всього контексту
+    const unlock = async (audio: HTMLAudioElement) => {
+      try {
+        audio.muted = true;
+        await audio.play();
         audio.pause();
         audio.currentTime = 0;
-        audio.volume = 0.4;
-      }).catch(() => {});
-    });
+        audio.muted = false;
+      } catch (e) {
+        console.warn('Audio unlock failed for element:', e);
+      }
+    };
 
+    const tasks = [];
+    if (tickPoolRef.current.length > 0) {
+      tasks.push(unlock(tickPoolRef.current[0]));
+    }
     if (winAudioRef.current) {
-      const win = winAudioRef.current;
-      win.volume = 0;
-      win.play().then(() => {
-        win.pause();
-        win.currentTime = 0;
-        win.volume = 0.5;
-      }).catch(() => {});
+      tasks.push(unlock(winAudioRef.current));
     }
 
-    Promise.all(promises).then(() => {
+    Promise.all(tasks).then(() => {
       setIsAudioUnlocked(true);
-      console.log('Audio unlocked');
+      console.log('Audio context unlocked');
     });
   }, [isAudioUnlocked]);
 
@@ -108,7 +110,8 @@ export default function App() {
     const audio = tickPoolRef.current[poolIndexRef.current];
     audio.currentTime = 0;
     audio.volume = 0.4;
-    audio.play().catch(() => {
+    audio.play().catch((e) => {
+      console.error('Tick play failed:', e);
       // Якщо звук все ще заблоковано, скидаємо стан
       setIsAudioUnlocked(false);
     });
@@ -122,7 +125,8 @@ export default function App() {
     const audio = winAudioRef.current;
     audio.currentTime = 0;
     audio.volume = 0.5;
-    audio.play().catch(() => {
+    audio.play().catch((e) => {
+      console.error('Win play failed:', e);
       setIsAudioUnlocked(false);
     });
   }, [isMuted]);
@@ -238,6 +242,7 @@ export default function App() {
   }, [sectors, drawWheel, playTick, playWin]);
 
   const handleSpin = () => {
+    console.log('Spin requested. Audio unlocked:', isAudioUnlocked);
     if (isSpinning || sectors.length < 2) return;
     
     // Спроба розблокувати аудіо при першому кліку
@@ -341,19 +346,6 @@ export default function App() {
               height={700}
               className="max-w-full h-auto rounded-full"
             />
-            
-            {/* Підказка про звук, якщо він заблокований */}
-            {!isAudioUnlocked && !isMuted && (
-              <div className="absolute inset-0 flex items-center justify-center z-30">
-                <button 
-                  onClick={unlockAudio}
-                  className="bg-emerald-600/90 backdrop-blur text-white px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-2 hover:bg-emerald-700 transition-all animate-bounce"
-                >
-                  <Volume2 className="w-5 h-5" />
-                  Увімкнути звук
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Кнопка запуску */}
