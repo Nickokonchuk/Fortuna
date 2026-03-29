@@ -22,6 +22,7 @@ export default function App() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rotationRef = useRef(0);
@@ -59,6 +60,35 @@ export default function App() {
   }, []);
 
   // --- Логіка Аудіо ---
+  const unlockAudio = useCallback(() => {
+    if (isAudioUnlocked) return;
+    
+    // Програємо і одразу ставимо на паузу всі звуки в пулі, щоб "розблокувати" їх для браузера
+    const promises = tickPoolRef.current.map(audio => {
+      audio.volume = 0;
+      return audio.play().then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = 0.4;
+      }).catch(() => {});
+    });
+
+    if (winAudioRef.current) {
+      const win = winAudioRef.current;
+      win.volume = 0;
+      win.play().then(() => {
+        win.pause();
+        win.currentTime = 0;
+        win.volume = 0.5;
+      }).catch(() => {});
+    }
+
+    Promise.all(promises).then(() => {
+      setIsAudioUnlocked(true);
+      console.log('Audio unlocked');
+    });
+  }, [isAudioUnlocked]);
+
   const playTick = useCallback(() => {
     if (isMuted || tickPoolRef.current.length === 0) return;
     
@@ -66,7 +96,10 @@ export default function App() {
     const audio = tickPoolRef.current[poolIndexRef.current];
     audio.currentTime = 0;
     audio.volume = 0.4;
-    audio.play().catch(() => {});
+    audio.play().catch(() => {
+      // Якщо звук все ще заблоковано, скидаємо стан
+      setIsAudioUnlocked(false);
+    });
     
     // Переходимо до наступного індексу в пулі
     poolIndexRef.current = (poolIndexRef.current + 1) % tickPoolRef.current.length;
@@ -77,18 +110,18 @@ export default function App() {
     const audio = winAudioRef.current;
     audio.currentTime = 0;
     audio.volume = 0.5;
-    audio.play().catch(() => {});
+    audio.play().catch(() => {
+      setIsAudioUnlocked(false);
+    });
   }, [isMuted]);
 
   // Тестовий звук для розблокування аудіо в браузері
   const testSound = () => {
-    if (tickPoolRef.current.length > 0) {
-      const audio = tickPoolRef.current[0];
-      audio.volume = 0.1;
-      audio.play()
-        .then(() => console.log('Аудіо розблоковано'))
-        .catch(err => alert('Браузер блокує звук. Натисніть будь-де на сторінці і спробуйте ще раз.'));
-    }
+    unlockAudio();
+    // Даємо невелику затримку, щоб встигло розблокуватись
+    setTimeout(() => {
+      playTick();
+    }, 100);
   };
 
   // --- Малювання Колеса ---
@@ -177,12 +210,7 @@ export default function App() {
     if (isSpinning || sectors.length < 2) return;
     
     // Спроба розблокувати аудіо при першому кліку
-    if (tickPoolRef.current.length > 0) {
-      const audio = tickPoolRef.current[0];
-      audio.play().then(() => {
-        audio.pause();
-      }).catch(() => {});
-    }
+    unlockAudio();
 
     setWinner(null);
     setIsSpinning(true);
@@ -277,6 +305,19 @@ export default function App() {
               height={700}
               className="max-w-full h-auto rounded-full"
             />
+            
+            {/* Підказка про звук, якщо він заблокований */}
+            {!isAudioUnlocked && !isMuted && (
+              <div className="absolute inset-0 flex items-center justify-center z-30">
+                <button 
+                  onClick={unlockAudio}
+                  className="bg-emerald-600/90 backdrop-blur text-white px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-2 hover:bg-emerald-700 transition-all animate-bounce"
+                >
+                  <Volume2 className="w-5 h-5" />
+                  Увімкнути звук
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Кнопка запуску */}
