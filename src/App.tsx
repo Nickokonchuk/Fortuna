@@ -21,6 +21,8 @@ export default function App() {
   const [inputText, setInputText] = useState(sectors.join('\n'));
   const [isSpinning, setIsSpinning] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
+  const [winnerCover, setWinnerCover] = useState<string | null>(null);
+  const [isFetchingCover, setIsFetchingCover] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
   
@@ -184,6 +186,23 @@ export default function App() {
     ctx.stroke();
   }, [sectors]);
 
+  const fetchBookCover = async (title: string) => {
+    setIsFetchingCover(true);
+    setWinnerCover(null);
+    try {
+      const response = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&limit=1`);
+      const data = await response.json();
+      if (data.docs && data.docs.length > 0 && data.docs[0].cover_i) {
+        const coverId = data.docs[0].cover_i;
+        setWinnerCover(`https://covers.openlibrary.org/b/id/${coverId}-L.jpg`);
+      }
+    } catch (error) {
+      console.error('Error fetching book cover:', error);
+    } finally {
+      setIsFetchingCover(false);
+    }
+  };
+
   // --- Анімація ---
   const animate = useCallback(() => {
     if (velocityRef.current > MIN_VELOCITY) {
@@ -211,7 +230,9 @@ export default function App() {
         ((1.5 * Math.PI - rotationRef.current) % (2 * Math.PI) + (2 * Math.PI)) % (2 * Math.PI) / sectorAngle
       );
       
-      setWinner(sectors[winningIndex]);
+      const winningTitle = sectors[winningIndex];
+      setWinner(winningTitle);
+      fetchBookCover(winningTitle);
       playWin();
     }
   }, [sectors, drawWheel, playTick, playWin]);
@@ -238,6 +259,11 @@ export default function App() {
   useEffect(() => {
     drawWheel();
   }, [drawWheel]);
+
+  const closeModal = () => {
+    setWinner(null);
+    setWinnerCover(null);
+  };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans flex flex-col md:flex-row overflow-hidden">
@@ -363,8 +389,24 @@ export default function App() {
               >
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-500 to-sky-500"></div>
                 
-                <div className="mb-6 inline-flex p-5 bg-emerald-50 rounded-full">
-                  <BookOpen className="w-12 h-12 text-emerald-600" />
+                <div className="mb-6 inline-flex p-5 bg-emerald-50 rounded-full relative overflow-hidden w-32 h-44 items-center justify-center">
+                  {isFetchingCover ? (
+                    <div className="animate-pulse flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 bg-emerald-200 rounded-full"></div>
+                      <div className="w-16 h-2 bg-emerald-200 rounded"></div>
+                    </div>
+                  ) : winnerCover ? (
+                    <motion.img 
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      src={winnerCover} 
+                      alt={winner || ''}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover rounded-lg shadow-md"
+                    />
+                  ) : (
+                    <BookOpen className="w-12 h-12 text-emerald-600" />
+                  )}
                 </div>
 
                 <h2 className="text-xl font-bold text-slate-400 mb-2 uppercase tracking-widest">Ваш вибір:</h2>
@@ -374,13 +416,13 @@ export default function App() {
 
                 <div className="flex flex-col gap-3">
                   <button
-                    onClick={() => setWinner(null)}
+                    onClick={closeModal}
                     className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
                   >
                     Обрати іншу
                   </button>
                   <button
-                    onClick={() => setWinner(null)}
+                    onClick={closeModal}
                     className="w-full py-3 text-slate-400 font-medium hover:text-slate-600 transition-colors"
                   >
                     Закрити
@@ -388,7 +430,7 @@ export default function App() {
                 </div>
 
                 <button 
-                  onClick={() => setWinner(null)}
+                  onClick={closeModal}
                   className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-500 transition-colors"
                 >
                   <X className="w-6 h-6" />
