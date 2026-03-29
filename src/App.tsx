@@ -76,59 +76,58 @@ export default function App() {
   const unlockAudio = useCallback(() => {
     if (isAudioUnlocked) return;
     
-    // Достатньо програти один звук з пулу та звук перемоги для розблокування всього контексту
-    const unlock = async (audio: HTMLAudioElement) => {
-      try {
-        audio.muted = true;
-        await audio.play();
-        audio.pause();
-        audio.currentTime = 0;
-        audio.muted = false;
-      } catch (e) {
-        console.warn('Audio unlock failed for element:', e);
-      }
-    };
-
-    const tasks = [];
-    if (tickPoolRef.current.length > 0) {
-      tasks.push(unlock(tickPoolRef.current[0]));
-    }
-    if (winAudioRef.current) {
-      tasks.push(unlock(winAudioRef.current));
-    }
-
-    Promise.all(tasks).then(() => {
+    // Використовуємо окремий порожній звук для розблокування аудіо-контексту,
+    // щоб не переривати основні звуки колеса
+    const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+    const audio = new Audio(silentSrc);
+    
+    audio.play().then(() => {
       setIsAudioUnlocked(true);
       console.log('Audio context unlocked');
+    }).catch(e => {
+      console.warn('Audio unlock failed:', e);
     });
   }, [isAudioUnlocked]);
 
   const playTick = useCallback(() => {
     if (isMuted || tickPoolRef.current.length === 0) return;
     
-    // Беремо наступний об'єкт з пулу
     const audio = tickPoolRef.current[poolIndexRef.current];
+    
+    // Скидаємо час тільки якщо звук не в процесі завантаження/програвання
+    // або використовуємо безпечний метод
+    audio.pause();
     audio.currentTime = 0;
     audio.volume = 0.4;
-    audio.play().catch((e) => {
-      console.error('Tick play failed:', e);
-      // Якщо звук все ще заблоковано, скидаємо стан
-      setIsAudioUnlocked(false);
-    });
     
-    // Переходимо до наступного індексу в пулі
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((e) => {
+        // Ігноруємо помилку переривання, вона не критична для "тікання"
+        if (e.name !== 'AbortError') {
+          console.error('Tick play failed:', e);
+        }
+      });
+    }
+    
     poolIndexRef.current = (poolIndexRef.current + 1) % tickPoolRef.current.length;
   }, [isMuted]);
 
   const playWin = useCallback(() => {
     if (isMuted || !winAudioRef.current) return;
     const audio = winAudioRef.current;
+    audio.pause();
     audio.currentTime = 0;
     audio.volume = 0.5;
-    audio.play().catch((e) => {
-      console.error('Win play failed:', e);
-      setIsAudioUnlocked(false);
-    });
+    
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((e) => {
+        if (e.name !== 'AbortError') {
+          console.error('Win play failed:', e);
+        }
+      });
+    }
   }, [isMuted]);
 
   // Тестовий звук для розблокування аудіо в браузері
