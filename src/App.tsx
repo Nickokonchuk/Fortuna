@@ -41,13 +41,14 @@ export default function App() {
   useEffect(() => {
     const poolSize = 10;
     const pool: HTMLAudioElement[] = [];
+    // Використовуємо надійні онлайн-джерела як запасні
     const tickUrl = 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3';
+    const winUrl = 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3';
     
     for (let i = 0; i < poolSize; i++) {
       const audio = new Audio('/tick.mp3');
       audio.preload = 'auto';
       audio.onerror = () => {
-        console.warn(`Failed to load /tick.mp3, trying fallback...`);
         if (audio.src.includes('/tick.mp3')) {
           audio.src = tickUrl;
         }
@@ -59,9 +60,8 @@ export default function App() {
     const win = new Audio('/win.mp3');
     win.preload = 'auto';
     win.onerror = () => {
-      console.warn(`Failed to load /win.mp3, trying fallback...`);
       if (win.src.includes('/win.mp3')) {
-        win.src = 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3';
+        win.src = winUrl;
       }
     };
     winAudioRef.current = win;
@@ -76,8 +76,7 @@ export default function App() {
   const unlockAudio = useCallback(() => {
     if (isAudioUnlocked) return;
     
-    // Використовуємо окремий порожній звук для розблокування аудіо-контексту,
-    // щоб не переривати основні звуки колеса
+    // Використовуємо окремий порожній звук для розблокування аудіо-контексту
     const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
     const audio = new Audio(silentSrc);
     
@@ -94,8 +93,6 @@ export default function App() {
     
     const audio = tickPoolRef.current[poolIndexRef.current];
     
-    // Скидаємо час тільки якщо звук не в процесі завантаження/програвання
-    // або використовуємо безпечний метод
     audio.pause();
     audio.currentTime = 0;
     audio.volume = 0.4;
@@ -103,7 +100,7 @@ export default function App() {
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise.catch((e) => {
-        // Ігноруємо помилку переривання, вона не критична для "тікання"
+        // Ігноруємо помилку переривання
         if (e.name !== 'AbortError') {
           console.error('Tick play failed:', e);
         }
